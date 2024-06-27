@@ -1,0 +1,61 @@
+#
+# Copyright © 2016-2023 The Thingsboard Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
+name: Ziehm dev release build
+on:
+  push:
+    branches: [ "master" ]
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout package
+        uses: actions/checkout@v3  
+      - name: Use Node.js 18.x
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18.x
+      - uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.9.5
+      - name: Installing angular 15 and yarn
+        run: npm install -g @angular/cli@15.2.8 yarn
+      
+      - name: Installing thingsboard
+        run: docker run -itd --name mytb --restart always -p 8080:9090 -p 1883:1883 -p 7070:7070 -p 5683-5688:5683-5688/udp -v /ziehm/mytb-data:/data -v /ziehm/mytb-logs:/var/log/thingsboard thingsboard/tb-postgres
+      - name: Checking npm version
+        run: npm -v
+      - name: Checking angular version
+        run: ng version
+      - name: Checking Java version
+        run: java -version
+      - name: Checking maven version
+        run: mvn -v
+      - name: Cleaning the last build
+        run: mvn clean
+      - name: Installing maven and compiling without test
+        run: mvn -DskipTests=true install
+      - name: Install sshpass
+        run: sudo apt-get install sshpass -y
+      - name: Deploy to VPS using Password
+        run: |
+          sshpass -p ${{ secrets.DEPLOY_PASSWORD }} ssh -o StrictHostKeyChecking=no root@167.235.52.191 'rm -rf /ziehmthings/*'
+          sshpass -p ${{ secrets.DEPLOY_PASSWORD }} scp -o StrictHostKeyChecking=no -r msa/tb/target/docker-postgres/* root@167.235.52.191:/ziehmthings
